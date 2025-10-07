@@ -1,0 +1,6 @@
+pwd
+ls
+cd home
+mkdir documents
+touch file.txt
+ls
