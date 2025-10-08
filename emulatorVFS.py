@@ -13,7 +13,6 @@ class RealVFS:
         self.base_path = Path(base_path)
         self.current_dir = self.base_path
 
-        # Создаем базовую структуру, если она не существует
         self._initialize_filesystem()
 
     def _initialize_filesystem(self):
@@ -483,7 +482,7 @@ def act(a):
 
 
 if __name__ == "__main__":
-    print("=== Real Filesystem VFS Emulator ===")
+    print("=== emulatorVFS ===")
     print(f"Базовая директория: {vfs.base_path}")
     print("Доступные команды: ls, cd, pwd, mkdir, touch, chmod, tail, date, find, test, exit")
     print(f"Текущая VFS директория: {vfs.vfs_pwd()}")

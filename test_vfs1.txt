@@ -1,8 +1,20 @@
+mkdir test_dir1
+ls
+mkdir test_dir2/test_subdir
+mkdir -p test_dir2/test_subdir
+ls
+cd test_dir2
 pwd
 ls
-cd home
-mkdir documents
-touch file.txt
-ls
-find /home -name '*.txt' -type f
-find . -name 'file*'
+cd ..
+pwd
+
+touch new_file1.txt
+touch new_file2.txt
+ls -l
+
+cd test_dir1
+touch nested_file.txt
+ls -l
+cd ..
+pwd

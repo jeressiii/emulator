@@ -1,9 +1,25 @@
-find /home -name '*.txt' -type f
-find . -name 'file*'
-pwd
-tail -n 5 /home/user/documents/file1.txt
-pwd
-date
-chmod 755 file.txt
-mkdir -p /home/user/dir
+cd folder1
+tail file1.txt
+tail -n 3 file1.txt
+tail file2.txt
+cd ..
+
+find . -name "*.txt"
+find . -name "file1.txt"
+find . -type f
+find . -type d
+find folder1 -name "*.txt"
+find . -name "*.csv"
+
+chmod 644 folder1/file1.txt
+chmod 755 test_dir1
+ls -l folder1/
 ls -l
+
+date
+date +%Y-%m-%d
+date +%H:%M:%S
+
+cd /
+pwd
+ls

@@ -1,6 +1,16 @@
 pwd
 ls
-cd home
-mkdir documents
-touch file.txt
+ls -l
+cd folder1
+pwd
 ls
+ls -l
+cd ..
+pwd
+cd folder2
+ls
+cd ../folder3
+pwd
+ls
+cd /
+pwd
