@@ -555,6 +555,26 @@ def act(a):
                         act(line)
         except FileNotFoundError:
             print("test_vfs.txt: file not found")
+    elif parts[0] == 'test1':
+        try:
+            with open('test_vfs1.txt', 'r', encoding='utf-8') as file:
+                for line in file:
+                    line = line.strip()
+                    if line:
+                        print(f'{vfs_name}$ {line}')
+                        act(line)
+        except FileNotFoundError:
+            print("test_vfs.txt: file not found")
+    elif parts[0] == 'test2':
+        try:
+            with open('test_vfs2.txt', 'r', encoding='utf-8') as file:
+                for line in file:
+                    line = line.strip()
+                    if line:
+                        print(f'{vfs_name}$ {line}')
+                        act(line)
+        except FileNotFoundError:
+            print("test_vfs.txt: file not found")
 
     else:
         print(f'{parts[0]}: command not found')
