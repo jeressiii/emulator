@@ -1,0 +1,8 @@
+pwd
+ls
+cd home
+mkdir documents
+touch file.txt
+ls
+find /home -name '*.txt' -type f
+find . -name 'file*'
