@@ -10,3 +10,6 @@ pwd
 tail -n 5 /home/user/documents/file1.txt
 pwd
 date
+chmod 755 file.txt
+mkdir -p /home/user/dir
+ls -l

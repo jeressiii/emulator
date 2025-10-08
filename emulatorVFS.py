@@ -13,49 +13,59 @@ class SimpleVFS:
             "/": {
                 "type": "dir",
                 "name": "",
+                "permissions": "755",  # права доступа
                 "children": {
                     "home": {
                         "type": "dir",
                         "name": "home",
+                        "permissions": "755",  # права доступа
                         "children": {
                             "user": {
                                 "type": "dir",
                                 "name": "user",
+                                "permissions": "755",  # права доступа
                                 "children": {
                                     "documents": {
                                         "type": "dir",
                                         "name": "documents",
+                                        "permissions": "755",  # права доступа
                                         "children": {
                                             "file1.txt": {
                                                 "type": "file",
                                                 "name": "file1.txt",
-                                                "content": "Line 1: Hello World\nLine 2: This is a test\nLine 3: VFS example\nLine 4: Python is great\nLine 5: End of file"
+                                                "content": "Line 1: Hello World\nLine 2: This is a test\nLine 3: VFS example\nLine 4: Python is great\nLine 5: End of file",
+                                                "permissions": "644"  # права доступа
                                             },
                                             "file2.txt": {
                                                 "type": "file",
                                                 "name": "file2.txt",
-                                                "content": "First line\nSecond line\nThird line"
+                                                "content": "First line\nSecond line\nThird line",
+                                                "permissions": "644"  # права доступа
                                             },
                                             "data.csv": {
                                                 "type": "file",
                                                 "name": "data.csv",
-                                                "content": "name,age\nJohn,25\nJane,30"
+                                                "content": "name,age\nJohn,25\nJane,30",
+                                                "permissions": "644"  # права доступа
                                             }
                                         }
                                     },
                                     "logs": {
                                         "type": "dir",
                                         "name": "logs",
+                                        "permissions": "755",  # права доступа
                                         "children": {
                                             "app.log": {
                                                 "type": "file",
                                                 "name": "app.log",
-                                                "content": "2024-01-01 ERROR: Something went wrong\n2024-01-01 INFO: Application started\n2024-01-02 WARNING: Low memory\n2024-01-02 INFO: User logged in\n2024-01-03 DEBUG: Processing data"
+                                                "content": "2024-01-01 ERROR: Something went wrong\n2024-01-01 INFO: Application started\n2024-01-02 WARNING: Low memory\n2024-01-02 INFO: User logged in\n2024-01-03 DEBUG: Processing data",
+                                                "permissions": "644"  # права доступа
                                             },
                                             "error.txt": {
                                                 "type": "file",
                                                 "name": "error.txt",
-                                                "content": "Critical error occurred"
+                                                "content": "Critical error occurred",
+                                                "permissions": "644"  # права доступа
                                             }
                                         }
                                     }
@@ -66,33 +76,45 @@ class SimpleVFS:
                     "etc": {
                         "type": "dir",
                         "name": "etc",
+                        "permissions": "755",  # права доступа
                         "children": {
                             "config.txt": {
                                 "type": "file",
                                 "name": "config.txt",
-                                "content": "host=localhost\nport=8080\ndebug=true\nversion=1.0"
+                                "content": "host=localhost\nport=8080\ndebug=true\nversion=1.0",
+                                "permissions": "644"  # права доступа
                             },
                             "settings.conf": {
                                 "type": "file",
                                 "name": "settings.conf",
-                                "content": "theme=dark\nlanguage=en"
+                                "content": "theme=dark\nlanguage=en",
+                                "permissions": "644"  # права доступа
+                            },
+                            "shadow": {  # файл с ограниченными правами
+                                "type": "file",
+                                "name": "shadow",
+                                "content": "encrypted:password:data",
+                                "permissions": "600"  # только владелец может читать/писать
                             }
                         }
                     },
                     "var": {
                         "type": "dir",
                         "name": "var",
+                        "permissions": "755",  # права доступа
                         "children": {
                             "log.txt": {
                                 "type": "file",
                                 "name": "log.txt",
-                                "content": "Startup complete\nUser connected\nData processed\nShutdown initiated"
+                                "content": "Startup complete\nUser connected\nData processed\nShutdown initiated",
+                                "permissions": "644"  # права доступа
                             }
                         }
                     },
                     "tmp": {
                         "type": "dir",
                         "name": "tmp",
+                        "permissions": "777",  # полные права для /tmp
                         "children": {}
                     }
                 }
@@ -144,7 +166,7 @@ class SimpleVFS:
                 return None
         return node
 
-    def vfs_ls(self):
+    def vfs_ls(self, detailed=False):
         # список файлов в текущей директории VFS
         node = self.get_current_node()
         if not node or node["type"] != "dir":
@@ -153,7 +175,18 @@ class SimpleVFS:
         if not node["children"]:
             return "Directory is empty"
 
-        return list(node["children"].keys())
+        if detailed:
+            # подробный вывод с правами
+            result = []
+            for name, child in node["children"].items():
+                perm = child.get("permissions", "644")
+                if child["type"] == "dir":
+                    result.append(f"d{perm} {name}/")
+                else:
+                    result.append(f"-{perm} {name}")
+            return "\n".join(result)
+        else:
+            return list(node["children"].keys())
 
     def vfs_cd(self, path):
         # смена директории в VFS
@@ -185,24 +218,68 @@ class SimpleVFS:
         # текущая директория в VFS
         return self.current_dir
 
-    def vfs_mkdir(self, dirname):
+    # mkdir с поддержкой рекурсивного создания
+    def vfs_mkdir(self, dirname, recursive=False):
         # создаем директорию в VFS
         if not dirname:
             return "Error: Directory name required"
 
-        node = self.get_current_node()
-        if not node or node["type"] != "dir":
-            return "Error: Not in a directory"
+        # абсолютный или относительный путь
+        if dirname.startswith("/"):
+            target_path = self.normalize_path(dirname)
+        else:
+            if self.current_dir == "/":
+                target_path = self.normalize_path("/" + dirname)
+            else:
+                target_path = self.normalize_path(self.current_dir + "/" + dirname)
 
-        if dirname in node["children"]:
-            return f"Directory already exists: {dirname}"
+        parts = [p for p in target_path.split("/") if p]
+        if not parts:
+            return "Error: Cannot create root directory"
 
-        node["children"][dirname] = {
-            "type": "dir",
-            "name": dirname,
-            "children": {}
-        }
-        return f"Directory created: {dirname}"
+        # если не рекурсивно, создаем только последнюю директорию
+        if not recursive:
+            dir_name = parts[-1]
+            parent_path = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
+
+            parent = self.get_node_by_path(parent_path)
+            if not parent or parent["type"] != "dir":
+                return f"Error: Parent directory not found: {parent_path}"
+
+            if dir_name in parent["children"]:
+                return f"Directory already exists: {dir_name}"
+
+            parent["children"][dir_name] = {
+                "type": "dir",
+                "name": dir_name,
+                "permissions": "755",  # стандартные права для директории
+                "children": {}
+            }
+            return f"Directory created: {target_path}"
+
+        else:
+            # рекурсивное создание всех недостающих директорий
+            current = self.fs["/"]
+            current_path = "/"
+
+            for i, part in enumerate(parts):
+                if part in current["children"]:
+                    if current["children"][part]["type"] != "dir":
+                        return f"Error: Path component is not a directory: {part}"
+                    current = current["children"][part]
+                    current_path = current_path + part + "/" if current_path != "/" else "/" + part + "/"
+                else:
+                    # создаем недостающую директорию
+                    current["children"][part] = {
+                        "type": "dir",
+                        "name": part,
+                        "permissions": "755",
+                        "children": {}
+                    }
+                    current = current["children"][part]
+                    current_path = current_path + part + "/" if current_path != "/" else "/" + part + "/"
+
+            return f"Directories created recursively: {target_path}"
 
     def vfs_touch(self, filename):
         # создаем файл в VFS
@@ -219,9 +296,37 @@ class SimpleVFS:
         node["children"][filename] = {
             "type": "file",
             "name": filename,
-            "content": ""
+            "content": "",
+            "permissions": "644"  # стандартные права для файла
         }
         return f"File created: {filename}"
+
+    def vfs_chmod(self, mode, target):
+        # изменение прав доступа файла/директории в VFS
+        if not mode or not target:
+            return "Error: Mode and target required"
+
+        # валидация режима
+        if not (mode.isdigit() and len(mode) == 3 and all(0 <= int(c) <= 7 for c in mode)):
+            return f"Error: Invalid mode format: {mode}. Use octal notation (e.g., 755, 644)"
+
+        # абсолютный или относительный путь
+        if target.startswith("/"):
+            target_path = self.normalize_path(target)
+        else:
+            if self.current_dir == "/":
+                target_path = self.normalize_path("/" + target)
+            else:
+                target_path = self.normalize_path(self.current_dir + "/" + target)
+
+        node = self.get_node_by_path(target_path)
+        if not node:
+            return f"Error: Target not found: {target}"
+
+        # применяем новые права
+        node["permissions"] = mode
+
+        return f"Changed permissions of '{target_path}' to {mode}"
 
     def vfs_tail(self, filename, lines=10):
         # выводим последние строки файла
@@ -256,7 +361,7 @@ class SimpleVFS:
         return '\n'.join(result_lines)
 
     def vfs_find(self, start_path="/", name=None, type_filter=None):
-        # поиск файлов и директорий с поддержкой wildcard
+        # поиск файлов и директорий
         if not start_path or start_path == ".":
             start_path = self.current_dir
         elif start_path == "..":
@@ -332,7 +437,8 @@ def act(a):
 
     # VFS команды
     if parts[0] == 'ls':
-        result = vfs.vfs_ls()
+        detailed = '-l' in parts
+        result = vfs.vfs_ls(detailed)
         print(result)
 
     elif parts[0] == 'cd':
@@ -348,11 +454,16 @@ def act(a):
         print(result)
 
     elif parts[0] == 'mkdir':
-        if len(parts) > 1:
-            result = vfs.vfs_mkdir(parts[1])
-            print(result)
-        else:
+        if len(parts) < 2:
             print("Error: Directory name required")
+            return
+
+        recursive = '-p' in parts
+        dirnames = [p for p in parts[1:] if p != '-p']
+
+        for dirname in dirnames:
+            result = vfs.vfs_mkdir(dirname, recursive)
+            print(result)
 
     elif parts[0] == 'touch':
         if len(parts) > 1:
@@ -360,6 +471,16 @@ def act(a):
             print(result)
         else:
             print("Error: File name required")
+
+    elif parts[0] == 'chmod':
+        if len(parts) < 3:
+            print("Write the complete command")
+            return
+
+        mode = parts[1]
+        target = parts[2]
+        result = vfs.vfs_chmod(mode, target)
+        print(result)
 
     elif parts[0] == 'tail':
         lines = 10  # по умолчанию 10 строк
@@ -440,8 +561,8 @@ def act(a):
 
 
 if __name__ == "__main__":
-    print("=== VFS Emulator ===")
-    print("Доступные команды: ls, cd, pwd, mkdir, touch, tail, date, find, test, exit")
+    print("=== VFS Emulator with Permissions ===")
+    print("Доступные команды: ls, cd, pwd, mkdir, touch, chmod, tail, date, find, test, exit")
     print(f"Текущая VFS директория: {vfs.vfs_pwd()}")
 
     while True:
