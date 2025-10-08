@@ -1,5 +1,9 @@
 import shlex
 import os
+import datetime
+import time
+import fnmatch  # для поддержки поиска
+
 
 # VFS в памяти
 class SimpleVFS:
@@ -13,19 +17,109 @@ class SimpleVFS:
                     "home": {
                         "type": "dir",
                         "name": "home",
-                        "children": {}
+                        "children": {
+                            "user": {
+                                "type": "dir",
+                                "name": "user",
+                                "children": {
+                                    "documents": {
+                                        "type": "dir",
+                                        "name": "documents",
+                                        "children": {
+                                            "file1.txt": {
+                                                "type": "file",
+                                                "name": "file1.txt",
+                                                "content": "Line 1: Hello World\nLine 2: This is a test\nLine 3: VFS example\nLine 4: Python is great\nLine 5: End of file"
+                                            },
+                                            "file2.txt": {
+                                                "type": "file",
+                                                "name": "file2.txt",
+                                                "content": "First line\nSecond line\nThird line"
+                                            },
+                                            "data.csv": {
+                                                "type": "file",
+                                                "name": "data.csv",
+                                                "content": "name,age\nJohn,25\nJane,30"
+                                            }
+                                        }
+                                    },
+                                    "logs": {
+                                        "type": "dir",
+                                        "name": "logs",
+                                        "children": {
+                                            "app.log": {
+                                                "type": "file",
+                                                "name": "app.log",
+                                                "content": "2024-01-01 ERROR: Something went wrong\n2024-01-01 INFO: Application started\n2024-01-02 WARNING: Low memory\n2024-01-02 INFO: User logged in\n2024-01-03 DEBUG: Processing data"
+                                            },
+                                            "error.txt": {
+                                                "type": "file",
+                                                "name": "error.txt",
+                                                "content": "Critical error occurred"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "etc": {
                         "type": "dir",
                         "name": "etc",
+                        "children": {
+                            "config.txt": {
+                                "type": "file",
+                                "name": "config.txt",
+                                "content": "host=localhost\nport=8080\ndebug=true\nversion=1.0"
+                            },
+                            "settings.conf": {
+                                "type": "file",
+                                "name": "settings.conf",
+                                "content": "theme=dark\nlanguage=en"
+                            }
+                        }
+                    },
+                    "var": {
+                        "type": "dir",
+                        "name": "var",
+                        "children": {
+                            "log.txt": {
+                                "type": "file",
+                                "name": "log.txt",
+                                "content": "Startup complete\nUser connected\nData processed\nShutdown initiated"
+                            }
+                        }
+                    },
+                    "tmp": {
+                        "type": "dir",
+                        "name": "tmp",
                         "children": {}
                     }
                 }
             }
         }
 
+    def normalize_path(self, path):
+        # нормализует путь, убирая лишние слеши
+        if not path:
+            return "/"
+
+        # убираем множественные слеши
+        parts = [p for p in path.split("/") if p]
+
+        # обрабатываем
+        result_parts = []
+        for part in parts:
+            if part == "..":
+                if result_parts:
+                    result_parts.pop()
+            elif part != ".":
+                result_parts.append(part)
+
+        return "/" + "/".join(result_parts) if result_parts else "/"
+
     def get_current_node(self):
-        # Получить текущую директорию
+        # получаем текущую директорию
         path_parts = [p for p in self.current_dir.split("/") if p]
         node = self.fs["/"]
         for part in path_parts:
@@ -35,8 +129,23 @@ class SimpleVFS:
                 return None
         return node
 
+    def get_node_by_path(self, path):
+        # получаем узел по абсолютному пути
+        if path == "/":
+            return self.fs["/"]
+
+        path_parts = [p for p in path.split("/") if p]
+        node = self.fs["/"]
+
+        for part in path_parts:
+            if part in node["children"]:
+                node = node["children"][part]
+            else:
+                return None
+        return node
+
     def vfs_ls(self):
-        # Список файлов в текущей директории VFS
+        # список файлов в текущей директории VFS
         node = self.get_current_node()
         if not node or node["type"] != "dir":
             return "Error: Directory not found"
@@ -47,42 +156,40 @@ class SimpleVFS:
         return list(node["children"].keys())
 
     def vfs_cd(self, path):
-        # Смена директории в VFS
-        if path == "..":
-            # Подняться на уровень выше
-            if self.current_dir != "/":
-                parts = [p for p in self.current_dir.split("/") if p]
-                if parts:
-                    parts.pop()
-                self.current_dir = "/" + "/".join(parts)
-                if self.current_dir == "":
-                    self.current_dir = "/"
-            return f"Changed to: {self.current_dir}"
+        # смена директории в VFS
+        if not path:
+            return "Error: Path required"
 
-        if path == "/":
-            self.current_dir = "/"
-            return "Changed to root"
+        if path == "~":
+            path = "/home"
 
-        # Проверим существует ли целевая директория
-        target_path = self.current_dir + "/" + path if self.current_dir != "/" else "/" + path
-        path_parts = [p for p in target_path.split("/") if p]
-
-        node = self.fs["/"]
-        for part in path_parts:
-            if part in node["children"] and node["children"][part]["type"] == "dir":
-                node = node["children"][part]
+        # абсолютный путь
+        if path.startswith("/"):
+            target_path = self.normalize_path(path)
+        # относительный путь
+        else:
+            if self.current_dir == "/":
+                target_path = self.normalize_path("/" + path)
             else:
-                return f"Directory not found: {path}"
+                target_path = self.normalize_path(self.current_dir + "/" + path)
+
+        # проверим существует ли целевая директория
+        node = self.get_node_by_path(target_path)
+        if not node or node["type"] != "dir":
+            return f"Directory not found: {path}"
 
         self.current_dir = target_path
         return f"Changed to: {self.current_dir}"
 
     def vfs_pwd(self):
-        # Текущая директория в VFS
+        # текущая директория в VFS
         return self.current_dir
 
     def vfs_mkdir(self, dirname):
-        # Создать директорию в VFS
+        # создаем директорию в VFS
+        if not dirname:
+            return "Error: Directory name required"
+
         node = self.get_current_node()
         if not node or node["type"] != "dir":
             return "Error: Not in a directory"
@@ -98,7 +205,10 @@ class SimpleVFS:
         return f"Directory created: {dirname}"
 
     def vfs_touch(self, filename):
-        # Создать файл в VFS
+        # создаем файл в VFS
+        if not filename:
+            return "Error: File name required"
+
         node = self.get_current_node()
         if not node or node["type"] != "dir":
             return "Error: Not in a directory"
@@ -112,6 +222,98 @@ class SimpleVFS:
             "content": ""
         }
         return f"File created: {filename}"
+
+    def vfs_tail(self, filename, lines=10):
+        # выводим последние строки файла
+        if not filename:
+            return "Error: File name required"
+
+        # абсолютный или относительный путь
+        if filename.startswith("/"):
+            file_path = self.normalize_path(filename)
+        else:
+            if self.current_dir == "/":
+                file_path = self.normalize_path("/" + filename)
+            else:
+                file_path = self.normalize_path(self.current_dir + "/" + filename)
+
+        node = self.get_node_by_path(file_path)
+        if not node:
+            return f"File not found: {filename}"
+
+        if node["type"] != "file":
+            return f"Not a file: {filename}"
+
+        content = node.get("content", "")
+        if not content:
+            return f"File is empty: {filename}"
+
+        # разбиваем на строки и берем последние N
+        all_lines = content.split('\n')
+        start_line = max(0, len(all_lines) - lines)
+        result_lines = all_lines[start_line:]
+
+        return '\n'.join(result_lines)
+
+    def vfs_find(self, start_path="/", name=None, type_filter=None):
+        # поиск файлов и директорий с поддержкой wildcard
+        if not start_path or start_path == ".":
+            start_path = self.current_dir
+        elif start_path == "..":
+            # поднимаемся на уровень выше
+            if self.current_dir == "/":
+                start_path = "/"
+            else:
+                parts = [p for p in self.current_dir.split("/") if p]
+                if parts:
+                    parts.pop()
+                start_path = "/" + "/".join(parts) if parts else "/"
+
+        start_node = self.get_node_by_path(self.normalize_path(start_path))
+        if not start_node:
+            return f"Directory not found: {start_path}"
+
+        results = []
+
+        def search_recursive(node, current_path):
+            # проверяем совпадение по имени
+            match_found = False
+            if name:
+                if fnmatch.fnmatch(node["name"], name):
+                    match_found = True
+            else:
+                match_found = True
+
+            # проверяем фильтр по типу
+            type_match = True
+            if type_filter:
+                if type_filter == "f" and node["type"] != "file":
+                    type_match = False
+                elif type_filter == "d" and node["type"] != "dir":
+                    type_match = False
+
+            # добавляем в результаты если все условия выполнены
+            if match_found and type_match:
+                full_path = current_path + node["name"]
+                results.append(full_path)
+
+            # рекурсивно ищем в дочерних элементах для директорий
+            if node["type"] == "dir" and "children" in node:
+                for child_name, child_node in node["children"].items():
+                    # формируем путь для дочернего элемента
+                    if current_path == "/":
+                        child_current_path = "/"
+                    else:
+                        child_current_path = current_path + node["name"] + "/"
+                    search_recursive(child_node, child_current_path)
+
+        # запускаем поиск
+        search_path = start_path if start_path.endswith("/") else start_path + "/"
+        if search_path == "//":  # исправляем двойной слеш для корня
+            search_path = "/"
+        search_recursive(start_node, search_path)
+
+        return results
 
 
 # Инициализация VFS
@@ -128,7 +330,7 @@ def act(a):
         print("")
         return
 
-    # VFS команды (заменяют реальные системные команды)
+    # VFS команды
     if parts[0] == 'ls':
         result = vfs.vfs_ls()
         print(result)
@@ -138,7 +340,7 @@ def act(a):
             result = vfs.vfs_cd(parts[1])
             print(result)
         else:
-            result = vfs.vfs_cd("/")
+            result = vfs.vfs_cd("~")
             print(result)
 
     elif parts[0] == 'pwd':
@@ -159,6 +361,69 @@ def act(a):
         else:
             print("Error: File name required")
 
+    elif parts[0] == 'tail':
+        lines = 10  # по умолчанию 10 строк
+        filename = None
+
+        # обработка аргументов
+        i = 1
+        while i < len(parts):
+            if parts[i] == '-n' and i + 1 < len(parts):
+                try:
+                    lines = int(parts[i + 1])
+                    i += 2
+                except ValueError:
+                    print("Error: Invalid number of lines")
+                    return
+            else:
+                filename = parts[i]
+                i += 1
+
+        if not filename:
+            print("Error: File name required")
+            return
+
+        result = vfs.vfs_tail(filename, lines)
+        print(result)
+
+    elif parts[0] == 'date':
+        if len(parts) > 1 and parts[1] == '+%Y-%m-%d':
+            # форматированная дата
+            print(datetime.datetime.now().strftime("%Y-%m-%d"))
+        elif len(parts) > 1 and parts[1] == '+%H:%M:%S':
+            # форматированное время
+            print(datetime.datetime.now().strftime("%H:%M:%S"))
+        else:
+            # стандартный вывод
+            print(datetime.datetime.now().strftime("%a %b %d %H:%M:%S %Z %Y"))
+
+    elif parts[0] == 'find':
+        start_path = "."
+        name_pattern = None
+        type_filter = None
+
+        i = 1
+        while i < len(parts):
+            if parts[i] == '-name' and i + 1 < len(parts):
+                name_pattern = parts[i + 1]
+                i += 2
+            elif parts[i] == '-type' and i + 1 < len(parts):
+                type_filter = parts[i + 1]
+                i += 2
+            else:
+                start_path = parts[i]
+                i += 1
+
+        results = vfs.vfs_find(start_path, name_pattern, type_filter)
+        if isinstance(results, list):
+            if results:
+                for result in results:
+                    print(result)
+            else:
+                print("No files found")
+        else:
+            print(results)
+
     elif parts[0] == 'test':
         try:
             with open('test_vfs.txt', 'r', encoding='utf-8') as file:
@@ -168,7 +433,7 @@ def act(a):
                         print(f'{vfs_name}$ {line}')
                         act(line)
         except FileNotFoundError:
-            print("test_fixed.txt: file not found")
+            print("test_vfs.txt: file not found")
 
     else:
         print(f'{parts[0]}: command not found')
@@ -176,7 +441,7 @@ def act(a):
 
 if __name__ == "__main__":
     print("=== VFS Emulator ===")
-    print("Доступные команды: ls, cd, pwd, mkdir, touch, test, exit")
+    print("Доступные команды: ls, cd, pwd, mkdir, touch, tail, date, find, test, exit")
     print(f"Текущая VFS директория: {vfs.vfs_pwd()}")
 
     while True:

@@ -4,3 +4,9 @@ cd home
 mkdir documents
 touch file.txt
 ls
+find /home -name '*.txt' -type f
+find . -name 'file*'
+pwd
+tail -n 5 /home/user/documents/file1.txt
+pwd
+date
